@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batalha Matemática</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(135deg, #0a1628 0%, #0d2b5e 50%, #0a3d62 100%);
+    min-height: 100vh;
+    color: #fff;
+    overflow-x: hidden;
+  }
+
+  .ocean-bg {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  }
+  .wave { position: absolute; bottom: 0; width: 200%; height: 180px; background: rgba(0,120,200,0.08); border-radius: 50%; animation: wave 8s linear infinite; }
+  .wave:nth-child(2) { height: 140px; background: rgba(0,180,220,0.06); animation-delay: -4s; animation-duration: 11s; }
+  @keyframes wave { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+  header {
+    position: relative; z-index: 10;
+    text-align: center; padding: 1.5rem 1rem 0.5rem;
+  }
+  header h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    color: #FFD700;
+    text-shadow: 0 2px 0 #b8860b, 0 4px 8px rgba(0,0,0,0.4);
+    letter-spacing: 1px;
+  }
+  header p { color: #a8d8ff; font-size: 1rem; margin-top: 0.25rem; }
+
+  .difficulty-bar {
+    position: relative; z-index: 10;
+    display: flex; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+  .diff-btn {
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.85rem;
+    padding: 0.35rem 1rem; border-radius: 20px; border: 2px solid;
+    cursor: pointer; transition: all 0.2s; background: transparent;
+  }
+  .diff-btn[data-d="facil"]   { border-color: #4ade80; color: #4ade80; }
+  .diff-btn[data-d="medio"]   { border-color: #facc15; color: #facc15; }
+  .diff-btn[data-d="dificil"] { border-color: #f87171; color: #f87171; }
+  .diff-btn.active[data-d="facil"]   { background: #4ade80; color: #065f46; }
+  .diff-btn.active[data-d="medio"]   { background: #facc15; color: #713f12; }
+  .diff-btn.active[data-d="dificil"] { background: #f87171; color: #7f1d1d; }
+
+  .game-container {
+    position: relative; z-index: 10;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 1.5rem; padding: 0.5rem 1rem 1rem;
+    max-width: 900px; margin: 0 auto;
+  }
+
+  .board-section { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .board-label {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem; color: #a8d8ff;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .board-label span.icon { font-size: 1.3rem; }
+
+  .grid-wrapper { position: relative; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px; padding: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.15);
+  }
+  .cell {
+    width: 46px; height: 46px;
+    border-radius: 6px;
+    background: rgba(0,80,160,0.4);
+    border: 1px solid rgba(100,180,255,0.2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    transition: transform 0.15s, background 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .cell:hover:not(.revealed):not(.player-cell) {
+    background: rgba(0,150,255,0.4);
+    transform: scale(1.08);
+    border-color: rgba(100,200,255,0.6);
+  }
+  .cell.hit {
+    background: rgba(239,68,68,0.7);
+    border-color: #ef4444;
+    animation: hitPulse 0.4s ease;
+  }
+  .cell.miss {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .cell.ship-player {
+    background: rgba(59,130,246,0.5);
+    border-color: rgba(147,197,253,0.6);
+  }
+  .cell.ship-player.hit-player {
+    background: rgba(239,68,68,0.7);
+    border-color: #ef4444;
+  }
+  .cell.revealed { cursor: default; }
+  @keyframes hitPulse {
+    0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); }
+  }
+
+  .status-panel {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; padding: 0.75rem 1rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    min-width: 200px; max-width: 260px;
+  }
+  .score-row { display: flex; gap: 1.5rem; }
+  .score-box { text-align: center; }
+  .score-box .label { font-size: 0.75rem; color: #a8d8ff; text-transform: uppercase; letter-spacing: 1px; }
+  .score-box .val { font-family: 'Fredoka One', cursive; font-size: 2rem; line-height: 1; }
+  .score-box.player .val { color: #4ade80; }
+  .score-box.enemy .val { color: #f87171; }
+
+  .turn-indicator {
+    font-size: 0.85rem; font-weight: 700; padding: 0.3rem 0.9rem;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .turn-indicator.your-turn { background: rgba(74,222,128,0.2); color: #4ade80; border: 1px solid #4ade80; }
+  .turn-indicator.enemy-turn { background: rgba(248,113,113,0.2); color: #f87171; border: 1px solid #f87171; }
+
+  .msg-log {
+    font-size: 0.8rem; color: #94a3b8; text-align: center;
+    min-height: 2.5rem; display: flex; align-items: center; justify-content: center;
+    padding: 0 0.5rem;
+  }
+  .msg-log.good { color: #4ade80; }
+  .msg-log.bad  { color: #f87171; }
+
+  .btn-restart {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    background: rgba(255,215,0,0.15); color: #FFD700;
+    border: 2px solid #FFD700; border-radius: 20px;
+    padding: 0.4rem 1.2rem; font-size: 0.9rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-restart:hover { background: #FFD700; color: #1a1a00; }
+
+  /* MODAL PERGUNTA */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,30,0.75);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-box {
+    background: linear-gradient(135deg, #0f2044, #1a3a6b);
+    border: 2px solid rgba(100,180,255,0.4);
+    border-radius: 20px; padding: 2rem;
+    max-width: 420px; width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    transform: scale(0.9); transition: transform 0.2s;
+  }
+  .modal-overlay.open .modal-box { transform: scale(1); }
+
+  .modal-category {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px;
+    color: #a8d8ff; margin-bottom: 0.5rem;
+  }
+  .modal-question {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    color: #FFD700; margin-bottom: 1.5rem;
+    line-height: 1.2;
+  }
+  .options-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.75rem; margin-bottom: 1rem;
+  }
+  .opt-btn {
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 1.1rem;
+    padding: 0.75rem; border-radius: 12px;
+    background: rgba(255,255,255,0.07);
+    border: 2px solid rgba(255,255,255,0.2); color: #fff;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .opt-btn:hover { background: rgba(100,180,255,0.2); border-color: #60a5fa; transform: scale(1.04); }
+  .opt-btn.correct { background: rgba(74,222,128,0.3); border-color: #4ade80; color: #4ade80; }
+  .opt-btn.wrong   { background: rgba(239,68,68,0.3);  border-color: #ef4444; color: #f87171; }
+  .opt-btn:disabled { cursor: default; }
+
+  .modal-feedback {
+    font-size: 1rem; font-weight: 700; min-height: 1.5rem;
+    margin-top: 0.25rem;
+  }
+  .modal-feedback.good { color: #4ade80; }
+  .modal-feedback.bad  { color: #f87171; }
+
+  /* FIM DE JOGO */
+  .endgame {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,30,0.85);
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 1rem; text-align: center;
+  }
+  .endgame.show { display: flex; }
+  .endgame h2 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+  }
+  .endgame h2.win { color: #FFD700; text-shadow: 0 0 30px rgba(255,215,0,0.6); }
+  .endgame h2.lose { color: #f87171; }
+  .endgame p { color: #a8d8ff; font-size: 1rem; }
+  .endgame .btn-restart { font-size: 1.1rem; padding: 0.6rem 2rem; }
+
+  .stars { font-size: 2.5rem; letter-spacing: 4px; }
+
+  @media (max-width: 520px) {
+    .cell { width: 38px; height: 38px; font-size: 1rem; }
+    .game-container { gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ocean-bg">
+  <div class="wave"></div>
+  <div class="wave"></div>
+</div>
+
+<header>
+  <h1>⚓ Batalha Matemática</h1>
+  <p>Acerte a conta para atirar no inimigo!</p>
+</header>
+
+<div class="difficulty-bar">
+  <button class="diff-btn active" data-d="facil">⭐ Fácil</button>
+  <button class="diff-btn" data-d="medio">⭐⭐ Médio</button>
+  <button class="diff-btn" data-d="dificil">⭐⭐⭐ Difícil</button>
+</div>
+
+<div class="game-container">
+  <div class="board-section">
+    <div class="board-label"><span class="icon">🤖</span> Campo Inimigo <span style="font-size:0.8rem;color:#f87171">(clique para atacar)</span></div>
+    <div class="grid" id="enemy-grid"></div>
+  </div>
+
+  <div class="status-panel">
+    <div class="score-row">
+      <div class="score-box player">
+        <div class="label">Seus acertos</div>
+        <div class="val" id="player-hits">0</div>
+      </div>
+      <div class="score-box enemy">
+        <div class="label">Acertos deles</div>
+        <div class="val" id="enemy-hits">0</div>
+      </div>
+    </div>
+    <div class="turn-indicator your-turn" id="turn-indicator">🎯 Sua vez</div>
+    <div class="msg-log" id="msg-log">Escolha uma célula no campo inimigo!</div>
+    <div style="font-size:0.75rem;color:#64748b">Navios restantes: <span id="ships-left-enemy">5</span> inimigos · <span id="ships-left-player">5</span> seus</div>
+    <button class="btn-restart" onclick="restartGame()">🔄 Novo Jogo</button>
+  </div>
+
+  <div class="board-section">
+    <div class="board-label"><span class="icon">🚢</span> Seu Campo</div>
+    <div class="grid" id="player-grid"></div>
+  </div>
+</div>
+
+<!-- Modal questão -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-category" id="modal-category">Multiplicação</div>
+    <div class="modal-question" id="modal-question">7 × 8 = ?</div>
+    <div class="options-grid" id="options-grid"></div>
+    <div class="modal-feedback" id="modal-feedback"></div>
+  </div>
+</div>
+
+<!-- End screen -->
+<div class="endgame" id="endgame">
+  <div class="stars" id="end-stars">⭐⭐⭐</div>
+  <h2 id="end-title">Você venceu!</h2>
+  <p id="end-msg">Parabéns! Sua matemática afundou toda a frota inimiga!</p>
+  <button class="btn-restart" onclick="restartGame()">🔄 Jogar Novamente</button>
+</div>
+
+<script>
+const GRID = 7;
+const SHIP_SIZES = [3, 3, 2, 2, 2];
+let difficulty = 'facil';
+let playerBoard, enemyBoard;
+let playerHits = 0, enemyHits = 0;
+let playerShipsLeft, enemyShipsLeft;
+let isPlayerTurn = true;
+let pendingCell = null;
+let gameOver = false;
+let playerCorrect = 0, playerWrong = 0;
+
+const QUESTIONS = {
+  facil: [
+    { q: '3 + 5 = ?', a: 8, opts: [6, 7, 8, 9], cat: 'Adição' },
+    { q: '12 − 4 = ?', a: 8, opts: [6, 7, 8, 9], cat: 'Subtração' },
+    { q: '4 × 3 = ?', a: 12, opts: [10, 11, 12, 14], cat: 'Multiplicação' },
+    { q: '15 ÷ 3 = ?', a: 5, opts: [4, 5, 6, 7], cat: 'Divisão' },
+    { q: '6 + 9 = ?', a: 15, opts: [13, 14, 15, 16], cat: 'Adição' },
+    { q: '20 − 7 = ?', a: 13, opts: [11, 12, 13, 14], cat: 'Subtração' },
+    { q: '5 × 4 = ?', a: 20, opts: [16, 18, 20, 22], cat: 'Multiplicação' },
+    { q: '18 ÷ 6 = ?', a: 3, opts: [2, 3, 4, 5], cat: 'Divisão' },
+    { q: '7 + 8 = ?', a: 15, opts: [13, 14, 15, 16], cat: 'Adição' },
+    { q: '25 − 9 = ?', a: 16, opts: [14, 15, 16, 17], cat: 'Subtração' },
+    { q: '3 × 7 = ?', a: 21, opts: [18, 19, 21, 24], cat: 'Multiplicação' },
+    { q: '24 ÷ 4 = ?', a: 6, opts: [4, 5, 6, 8], cat: 'Divisão' },
+    { q: 'Qual é a metade de 14?', a: 7, opts: [5, 6, 7, 8], cat: 'Metade' },
+    { q: 'Qual é o dobro de 9?', a: 18, opts: [16, 17, 18, 20], cat: 'Dobro' },
+    { q: '2² = ?', a: 4, opts: [2, 4, 6, 8], cat: 'Potência' },
+  ],
+  medio: [
+    { q: '13 × 4 = ?', a: 52, opts: [48, 50, 52, 56], cat: 'Multiplicação' },
+    { q: '144 ÷ 12 = ?', a: 12, opts: [10, 11, 12, 14], cat: 'Divisão' },
+    { q: '¾ de 40 = ?', a: 30, opts: [20, 25, 30, 35], cat: 'Fração' },
+    { q: '15% de 60 = ?', a: 9, opts: [6, 8, 9, 12], cat: 'Porcentagem' },
+    { q: '√64 = ?', a: 8, opts: [6, 7, 8, 9], cat: 'Raiz Quadrada' },
+    { q: '3² + 4² = ?', a: 25, opts: [20, 22, 25, 49], cat: 'Potências' },
+    { q: '0,5 × 36 = ?', a: 18, opts: [14, 16, 18, 20], cat: 'Decimal' },
+    { q: '⅖ de 50 = ?', a: 20, opts: [15, 18, 20, 25], cat: 'Fração' },
+    { q: '25% de 80 = ?', a: 20, opts: [15, 18, 20, 25], cat: 'Porcentagem' },
+    { q: '11 × 11 = ?', a: 121, opts: [111, 121, 131, 141], cat: 'Multiplicação' },
+    { q: '√81 = ?', a: 9, opts: [7, 8, 9, 10], cat: 'Raiz Quadrada' },
+    { q: 'MDC(12, 18) = ?', a: 6, opts: [2, 3, 6, 9], cat: 'Divisores' },
+    { q: 'MMC(4, 6) = ?', a: 12, opts: [6, 10, 12, 24], cat: 'Múltiplos' },
+    { q: '½ + ⅓ = ?', a: '5/6', opts: ['2/6', '2/5', '5/6', '3/6'], cat: 'Frações' },
+    { q: '40% de 70 = ?', a: 28, opts: [24, 26, 28, 32], cat: 'Porcentagem' },
+  ],
+  dificil: [
+    { q: 'x² − 5x + 6 = 0\nMaior raiz:', a: 3, opts: [1, 2, 3, 6], cat: 'Equação 2º grau' },
+    { q: '3x + 7 = 22\nx = ?', a: 5, opts: [3, 4, 5, 6], cat: 'Equação 1º grau' },
+    { q: '√(144 + 25) = ?', a: 13, opts: [11, 12, 13, 14], cat: 'Raiz' },
+    { q: '2³ × 2⁴ = ?', a: 128, opts: [64, 96, 128, 256], cat: 'Potências' },
+    { q: 'log₂(64) = ?', a: 6, opts: [4, 5, 6, 8], cat: 'Logaritmo' },
+    { q: 'sen(30°) = ?', a: '0,5', opts: ['0,25', '0,5', '√2/2', '√3/2'], cat: 'Trigonometria' },
+    { q: 'Área do círculo\nr = 5, π ≈ 3,14\nA ≈ ?', a: 78.5, opts: [62.5, 70, 78.5, 85], cat: 'Geometria' },
+    { q: '2x − 3y = 1\nx + y = 7\nx = ?', a: 4, opts: [2, 3, 4, 5], cat: 'Sistema linear' },
+    { q: '5! = ?', a: 120, opts: [60, 100, 120, 240], cat: 'Fatorial' },
+    { q: 'Progressão: 2, 5, 8, ...\n10º termo = ?', a: 29, opts: [23, 26, 29, 32], cat: 'PA' },
+    { q: 'cos(60°) = ?', a: '0,5', opts: ['0,25', '0,5', '√2/2', '√3/2'], cat: 'Trigonometria' },
+    { q: 'C(5,2) = ?', a: 10, opts: [5, 8, 10, 20], cat: 'Combinação' },
+    { q: '(x+3)² = ?\nExpanda:', a: 'x²+6x+9', opts: ['x²+9', 'x²+3x+9', 'x²+6x+9', 'x²+6x+6'], cat: 'Álgebra' },
+    { q: 'Hipotenusa: catetos 6 e 8\nc = ?', a: 10, opts: [8, 9, 10, 12], cat: 'Pitágoras' },
+    { q: 'log₁₀(1000) = ?', a: 3, opts: [2, 3, 4, 100], cat: 'Logaritmo' },
+  ]
+};
+
+function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+function createEmptyBoard() {
+  return Array.from({ length: GRID }, () => Array(GRID).fill(0));
+}
+
+function placeShips(board) {
+  const ships = [];
+  for (const size of SHIP_SIZES) {
+    let placed = false;
+    while (!placed) {
+      const dir = Math.random() < 0.5 ? 'H' : 'V';
+      const maxR = dir === 'H' ? GRID : GRID - size;
+      const maxC = dir === 'H' ? GRID - size : GRID;
+      const r = Math.floor(Math.random() * maxR);
+      const c = Math.floor(Math.random() * maxC);
+      const cells = [];
+      let ok = true;
+      for (let i = 0; i < size; i++) {
+        const nr = dir === 'H' ? r : r + i;
+        const nc = dir === 'H' ? c + i : c;
+        if (board[nr][nc] !== 0) { ok = false; break; }
+        cells.push([nr, nc]);
+      }
+      if (ok) {
+        cells.forEach(([nr, nc]) => board[nr][nc] = 1);
+        ships.push({ cells, hits: 0, size });
+        placed = true;
+      }
+    }
+  }
+  return ships;
+}
+
+function buildGrid(containerId, board, isPlayer) {
+  const grid = document.getElementById(containerId);
+  grid.innerHTML = '';
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      if (isPlayer && board[r][c] === 1) {
+        cell.classList.add('ship-player');
+        cell.textContent = '🚢';
+      }
+      if (!isPlayer) {
+        cell.addEventListener('click', () => playerAttack(r, c, cell));
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function getCell(gridId, r, c) {
+  const cells = document.querySelectorAll(`#${gridId} .cell`);
+  return cells[r * GRID + c];
+}
+
+let usedQuestions = [];
+function getQuestion() {
+  const pool = QUESTIONS[difficulty];
+  if (usedQuestions.length >= pool.length) usedQuestions = [];
+  const remaining = pool.filter((_, i) => !usedQuestions.includes(i));
+  const pick = Math.floor(Math.random() * remaining.length);
+  const realIdx = pool.indexOf(remaining[pick]);
+  usedQuestions.push(realIdx);
+  return pool[realIdx];
+}
+
+function playerAttack(r, c, cell) {
+  if (!isPlayerTurn || gameOver) return;
+  if (cell.classList.contains('revealed')) return;
+
+  pendingCell = { r, c, cell };
+  showQuestion();
+}
+
+function showQuestion() {
+  const q = getQuestion();
+  document.getElementById('modal-category').textContent = q.cat;
+  document.getElementById('modal-question').textContent = q.q;
+  document.getElementById('modal-feedback').textContent = '';
+  document.getElementById('modal-feedback').className = 'modal-feedback';
+
+  const optsEl = document.getElementById('options-grid');
+  optsEl.innerHTML = '';
+  const shuffled = shuffle(q.opts);
+  shuffled.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-btn';
+    btn.textContent = opt;
+    btn.onclick = () => checkAnswer(opt, q.a, q, btn);
+    optsEl.appendChild(btn);
+  });
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function checkAnswer(chosen, correct, q, btn) {
+  const allBtns = document.querySelectorAll('.opt-btn');
+  allBtns.forEach(b => b.disabled = true);
+
+  const isCorrect = String(chosen) === String(correct);
+  const feedback = document.getElementById('modal-feedback');
+
+  if (isCorrect) {
+    btn.classList.add('correct');
+    feedback.textContent = '✅ Correto! Disparando...';
+    feedback.className = 'modal-feedback good';
+    playerCorrect++;
+    setTimeout(() => { closeModal(); resolvePlayerShot(true); }, 900);
+  } else {
+    btn.classList.add('wrong');
+    allBtns.forEach(b => { if (String(b.textContent) === String(correct)) b.classList.add('correct'); });
+    feedback.textContent = `❌ Errou! Resposta: ${correct}. Vez do inimigo!`;
+    feedback.className = 'modal-feedback bad';
+    playerWrong++;
+    setTimeout(() => { closeModal(); resolvePlayerShot(false); }, 1500);
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+function resolvePlayerShot(hit) {
+  const { r, c, cell } = pendingCell;
+  if (!hit) {
+    setMsg('❌ Você errou a conta — o tiro foi pro mar! Vez do inimigo.', 'bad');
+    cell.classList.add('miss', 'revealed');
+    cell.textContent = '💧';
+    switchToEnemyTurn();
+    return;
+  }
+
+  cell.classList.add('revealed');
+  if (enemyBoard[r][c] === 1) {
+    cell.classList.add('hit');
+    cell.textContent = '💥';
+    playerHits++;
+    document.getElementById('player-hits').textContent = playerHits;
+    const killed = checkSunkShip(enemyShips, r, c);
+    if (killed) {
+      enemyShipsLeft--;
+      document.getElementById('ships-left-enemy').textContent = enemyShipsLeft;
+      setMsg(`🔥 Você afundou um navio inimigo! (${enemyShipsLeft} restando)`, 'good');
+      if (enemyShipsLeft === 0) { endGame(true); return; }
+    } else {
+      setMsg('💥 Acertou! Você ainda pode atacar!', 'good');
+    }
+    isPlayerTurn = true;
+    setTurnIndicator(true);
+  } else {
+    cell.classList.add('miss');
+    cell.textContent = '🌊';
+    setMsg('🌊 Água! Vez do inimigo.', '');
+    switchToEnemyTurn();
+  }
+}
+
+function checkSunkShip(ships, r, c) {
+  for (const ship of ships) {
+    const idx = ship.cells.findIndex(([sr, sc]) => sr === r && sc === c);
+    if (idx !== -1) {
+      ship.hits++;
+      return ship.hits >= ship.size;
+    }
+  }
+  return false;
+}
+
+function switchToEnemyTurn() {
+  isPlayerTurn = false;
+  setTurnIndicator(false);
+  setTimeout(enemyShoot, 1200);
+}
+
+function enemyShoot() {
+  if (gameOver) return;
+  let r, c;
+  do {
+    r = Math.floor(Math.random() * GRID);
+    c = Math.floor(Math.random() * GRID);
+  } while (playerShot[r][c]);
+  playerShot[r][c] = true;
+
+  const cell = getCell('player-grid', r, c);
+  cell.classList.add('revealed');
+
+  if (playerBoard[r][c] === 1) {
+    cell.classList.add('ship-player', 'hit-player');
+    cell.textContent = '💥';
+    enemyHits++;
+    document.getElementById('enemy-hits').textContent = enemyHits;
+    const killed = checkSunkShip(playerShips, r, c);
+    if (killed) {
+      playerShipsLeft--;
+      document.getElementById('ships-left-player').textContent = playerShipsLeft;
+      setMsg(`💀 Inimigo afundou um dos seus navios! (${playerShipsLeft} restando)`, 'bad');
+      if (playerShipsLeft === 0) { endGame(false); return; }
+    } else {
+      setMsg('💀 Inimigo acertou um dos seus navios!', 'bad');
+    }
+  } else {
+    cell.textContent = '🌊';
+    setMsg('🌊 Inimigo errou! Sua vez de atacar.', 'good');
+  }
+  isPlayerTurn = true;
+  setTurnIndicator(true);
+}
+
+function setMsg(text, type) {
+  const el = document.getElementById('msg-log');
+  el.textContent = text;
+  el.className = 'msg-log' + (type ? ' ' + type : '');
+}
+
+function setTurnIndicator(yours) {
+  const el = document.getElementById('turn-indicator');
+  el.textContent = yours ? '🎯 Sua vez' : '⚔️ Vez do inimigo';
+  el.className = 'turn-indicator ' + (yours ? 'your-turn' : 'enemy-turn');
+}
+
+function endGame(playerWon) {
+  gameOver = true;
+  const overlay = document.getElementById('endgame');
+  overlay.classList.add('show');
+  document.getElementById('end-stars').textContent = playerWon ? '⭐⭐⭐' : '💧💧💧';
+  const title = document.getElementById('end-title');
+  title.textContent = playerWon ? '🏆 Você venceu!' : '💀 Você perdeu!';
+  title.className = playerWon ? 'win' : 'lose';
+  document.getElementById('end-msg').textContent = playerWon
+    ? `Parabéns! Você afundou toda a frota inimiga! Acertos: ${playerCorrect} | Erros: ${playerWrong}`
+    : `O inimigo afundou seus navios. Acertos: ${playerCorrect} | Erros: ${playerWrong}. Tente novamente!`;
+}
+
+let enemyShips, playerShips, playerShot;
+
+function restartGame() {
+  document.getElementById('endgame').classList.remove('show');
+  gameOver = false; isPlayerTurn = true;
+  playerHits = 0; enemyHits = 0;
+  playerCorrect = 0; playerWrong = 0;
+  usedQuestions = [];
+
+  playerBoard = createEmptyBoard();
+  enemyBoard = createEmptyBoard();
+  playerShot = Array.from({ length: GRID }, () => Array(GRID).fill(false));
+
+  playerShips = placeShips(playerBoard);
+  enemyShips = placeShips(enemyBoard);
+
+  playerShipsLeft = SHIP_SIZES.length;
+  enemyShipsLeft = SHIP_SIZES.length;
+
+  document.getElementById('player-hits').textContent = 0;
+  document.getElementById('enemy-hits').textContent = 0;
+  document.getElementById('ships-left-enemy').textContent = SHIP_SIZES.length;
+  document.getElementById('ships-left-player').textContent = SHIP_SIZES.length;
+
+  buildGrid('enemy-grid', enemyBoard, false);
+  buildGrid('player-grid', playerBoard, true);
+  setTurnIndicator(true);
+  setMsg('🎯 Escolha uma célula no campo inimigo e responda a conta!', '');
+}
+
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.d;
+    restartGame();
+  });
+});
+
+restartGame();
+</script>
+</body>
+</html>
